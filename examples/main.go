@@ -19,17 +19,17 @@ type PingMessage struct {
 }
 
 func main() {
-	db, err := db.ConnectToSqliteDb("./deleteThisDB.sqlite")
+	dbConn, err := db.ConnectToSqliteDb("./deleteThisDB.sqlite")
 	defer func() {
 		log.Println("Closing the db...")
-		err := db.CloseSqlDBConn(db)
+		err := db.CloseSqlDBConn(dbConn)
 		if err != nil {
 			log.Println("Error closing the db")
 		} else {
 			log.Println("DB closed.")
 		}
 	}()
-	log.Printf("Database: %v \n\nError: %v", db, err)
+	log.Printf("Database: %v \n\nError: %v", dbConn, err)
 
 	// ---
 
