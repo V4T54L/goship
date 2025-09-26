@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/V4T54L/goship/pkg/goship"
+	"github.com/V4T54L/goship/pkg/goship/db"
+	"github.com/V4T54L/goship/pkg/goship/server"
 	"github.com/V4T54L/goship/pkg/goship/sse"
 	"github.com/V4T54L/goship/pkg/goship/ws"
 	"github.com/go-chi/chi/v5"
@@ -18,10 +19,10 @@ type PingMessage struct {
 }
 
 func main() {
-	db, err := goship.ConnectToSqliteDb("./deleteThisDB.sqlite")
+	db, err := db.ConnectToSqliteDb("./deleteThisDB.sqlite")
 	defer func() {
 		log.Println("Closing the db...")
-		err := goship.CloseSqlDBConn(db)
+		err := db.CloseSqlDBConn(db)
 		if err != nil {
 			log.Println("Error closing the db")
 		} else {
@@ -32,7 +33,7 @@ func main() {
 
 	// ---
 
-	server := goship.NewChiServer()
+	server := server.NewChiServer()
 	server.AddDefaultMiddleware()
 	server.AddPermissiveCORS()
 	server.AddDefaultRoutes()

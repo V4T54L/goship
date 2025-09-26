@@ -1,4 +1,4 @@
-package goship
+package db
 
 import (
 	"context"

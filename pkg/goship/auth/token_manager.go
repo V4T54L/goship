@@ -1,4 +1,4 @@
-package goship
+package auth
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/V4T54L/goship/pkg/goship/utils"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -84,20 +85,20 @@ func (m *jwtManagerHS) AuthMiddleware() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				WriteJSONError(w, http.StatusUnauthorized, "Authorization header is required")
+				utils.WriteJSONError(w, http.StatusUnauthorized, "Authorization header is required")
 				return
 			}
 
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-				WriteJSONError(w, http.StatusUnauthorized, "Invalid Authorization header format")
+				utils.WriteJSONError(w, http.StatusUnauthorized, "Invalid Authorization header format")
 				return
 			}
 
 			tokenString := parts[1]
 			claims, err := m.Parse(tokenString)
 			if err != nil {
-				WriteJSONError(w, http.StatusUnauthorized, "Invalid token")
+				utils.WriteJSONError(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 

@@ -1,4 +1,4 @@
-package goship
+package utils
 
 import (
 	"encoding/json"

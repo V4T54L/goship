@@ -1,4 +1,4 @@
-package goship
+package server
 
 // Server defines the interface for an HTTP server with middleware, CORS,
 // routing, and graceful shutdown support.

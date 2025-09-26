@@ -1,4 +1,4 @@
-package goship
+package auth
 
 import "context"
 
@@ -13,3 +13,4 @@ const (
 func ContextWithClaims(ctx context.Context, claims map[string]interface{}) context.Context {
 	return context.WithValue(ctx, ClaimsKey, claims)
 }
+
