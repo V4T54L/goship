@@ -21,32 +21,36 @@ type chiServer struct {
 	server *http.Server
 }
 
-// NewChiServer creates and initializes a new chiServer with required middleware and routes.
-func NewChiServer() Server {
-	r := chi.NewRouter()
+var _ Server = &chiServer{}
 
-	// Add common middleware
-	r.Use(middleware.RequestID)   // Assigns a unique ID to each request
-	r.Use(middleware.RealIP)      // Gets the real IP from X-Forwarded-For
-	r.Use(middleware.Logger)      // Logs the start and end of each request with metadata
-	r.Use(middleware.Recoverer)   // Recovers from panics and writes a 500 error
-	r.Use(chiRateLimiter(10, 20)) // Basic rate limiter: 10 rps with burst of 20
-
-	// Health and metrics endpoints
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-	r.Handle("/metrics", promhttp.Handler())
-
+// NewChiServer initializes and returns a new instance of a Chi-based server.
+// Middleware and routes must be added separately after initialization.
+func NewChiServer() *chiServer {
 	return &chiServer{
-		router: r,
+		router: chi.NewRouter(),
 	}
 }
 
-// AddCORS adds a permissive CORS policy allowing all origins, methods, and headers.
-// WARNING: This should be locked down in production.
-func (cs *chiServer) AddCORS() {
+// AddDefaultMiddleware attaches standard middleware to the router.
+// This includes:
+// - RequestID: Generates a unique request ID for each request
+// - RealIP: Extracts client IP from X-Forwarded-For
+// - Logger: Logs request and response metadata
+// - Recoverer: Recovers from panics and returns 500 error
+// - RateLimiter: Basic rate limiting to protect server
+func (cs *chiServer) AddDefaultMiddleware() {
+	cs.router.Use(middleware.RequestID)
+	cs.router.Use(middleware.RealIP)
+	cs.router.Use(middleware.Logger)
+	cs.router.Use(middleware.Recoverer)
+	cs.router.Use(chiRateLimiter(10, 20)) // Limit: 10 requests/sec, burst: 20
+}
+
+// AddPermissiveCORS attaches a permissive CORS policy to the router.
+//
+// ⚠ WARNING: This configuration allows all origins, methods, and headers
+// and should NOT be used in production environments without restrictions.
+func (cs *chiServer) AddPermissiveCORS() {
 	cs.router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -55,12 +59,29 @@ func (cs *chiServer) AddCORS() {
 	}))
 }
 
-// GetRouter exposes the underlying router interface so additional routes can be mounted externally.
+// AddDefaultRoutes registers common endpoints on the router.
+//
+// - GET /health: Returns "OK" (used for health checks)
+// - GET /metrics: Prometheus metrics handler
+func (cs *chiServer) AddDefaultRoutes() {
+	cs.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	cs.router.Handle("/metrics", promhttp.Handler())
+}
+
+// GetRouter returns the internal Chi router instance.
+// This allows the caller to mount additional custom routes externally.
 func (cs *chiServer) GetRouter() interface{} {
 	return cs.router
 }
 
-// Run starts the HTTP server and sets up graceful shutdown using signals.
+// Run starts the HTTP server on the specified port and handles
+// graceful shutdown on system interrupt (e.g., Ctrl+C).
+//
+// It listens for incoming connections and shuts down cleanly within
+// 10 seconds after receiving a termination signal.
 func (cs *chiServer) Run(port string) error {
 	cs.server = &http.Server{
 		Addr:         ":" + port,
@@ -70,16 +91,18 @@ func (cs *chiServer) Run(port string) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Channel to listen for interrupt or terminate signal
+	// Channel to signal when shutdown is complete
 	idleConnsClosed := make(chan struct{})
+
+	// Listen for interrupt signal and initiate graceful shutdown
 	go func() {
 		sigint := make(chan os.Signal, 1)
 		signal.Notify(sigint, os.Interrupt)
 		<-sigint
 
-		// Shutdown signal received, attempt graceful shutdown
 		log.Println("Shutting down server gracefully...")
 
+		// Create context with timeout for shutdown operations
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -91,17 +114,21 @@ func (cs *chiServer) Run(port string) error {
 
 	log.Printf("Starting server on port %s", port)
 	if err := cs.server.ListenAndServe(); err != http.ErrServerClosed {
-		// Unexpected error. Port may be in use, etc.
+		// Unexpected error occurred
 		return err
 	}
 
+	// Wait for graceful shutdown to complete
 	<-idleConnsClosed
 	log.Println("Server stopped.")
 	return nil
 }
 
-// chiRateLimiter creates a middleware that limits incoming requests per client IP.
-// rps: requests per second, burst: maximum burst capacity
+// chiRateLimiter returns a middleware that rate-limits incoming requests
+// using a token bucket algorithm.
+//
+// rps: Requests per second
+// burst: Maximum burst size
 func chiRateLimiter(rps float64, burst int) func(http.Handler) http.Handler {
 	limiter := rate.NewLimiter(rate.Limit(rps), burst)
 

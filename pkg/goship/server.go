@@ -1,12 +1,25 @@
 package goship
 
+// Server defines the interface for an HTTP server with middleware, CORS,
+// routing, and graceful shutdown support.
 type Server interface {
-	// Adds an open CORS that allows all traffic
-	AddCORS()
-	// Returns the router as interface with some middlewares & handlers attached,
+	// AddDefaultMiddleware attaches common middleware like logging,
+	// recovery, request ID, real IP, and rate limiting.
+	AddDefaultMiddleware()
+
+	// AddPermissiveCORS attaches a permissive CORS policy allowing all origins,
+	// methods, and headers.
 	// 
-	// Like IP, logger, rate limiter, recoverer, and health & prometheus(metrics) handler 
+	// WARNING: This is insecure for production use.
+	AddPermissiveCORS()
+
+	// AddDefaultRoutes registers default endpoints such as /health and /metrics.
+	AddDefaultRoutes()
+
+	// GetRouter returns the underlying router for mounting custom routes.
 	GetRouter() interface{}
-	// Runs server with graceful shutdown on the provided port
+
+	// Run starts the HTTP server on the specified port and gracefully shuts down
+	// on interrupt signals.
 	Run(port string) error
 }

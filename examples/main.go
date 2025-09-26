@@ -8,8 +8,14 @@ import (
 
 	"github.com/V4T54L/goship/pkg/goship"
 	"github.com/V4T54L/goship/pkg/goship/sse"
+	"github.com/V4T54L/goship/pkg/goship/ws"
 	"github.com/go-chi/chi/v5"
 )
+
+type PingMessage struct {
+	Type string `json:"type"`
+	Time string `json:"time"`
+}
 
 func main() {
 	db, err := goship.ConnectToSqliteDb("./deleteThisDB.sqlite")
@@ -25,21 +31,23 @@ func main() {
 	log.Printf("Database: %v \n\nError: %v", db, err)
 
 	// ---
-	
+
 	server := goship.NewChiServer()
-	server.AddCORS()
-	
+	server.AddDefaultMiddleware()
+	server.AddPermissiveCORS()
+	server.AddDefaultRoutes()
+
 	r, ok := server.GetRouter().(*chi.Mux)
 	if !ok {
 		log.Fatal("Error obtaining the router")
 	}
 
 	// ---
-	
+
 	r.Get("/events", sse.Handler(func(w sse.Writer, r *http.Request) error {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
-		
+
 		// Optional: send retry interval
 		w.Retry(2 * time.Second)
 
@@ -55,6 +63,34 @@ func main() {
 				}
 			}
 		}
+	}))
+
+	// ---
+
+	r.Get("/ws", ws.Handler(func(conn ws.Conn) {
+		log.Println("Client connected")
+
+		for {
+			var msg PingMessage
+			if err := conn.ReadJSON(&msg); err != nil {
+				log.Println("Read error:", err)
+				break
+			}
+
+			log.Printf("Received: %+v\n", msg)
+
+			// Echo back a response
+			resp := PingMessage{
+				Type: "pong",
+				Time: time.Now().Format(time.RFC3339),
+			}
+			if err := conn.WriteJSON(resp); err != nil {
+				log.Println("Write error:", err)
+				break
+			}
+		}
+
+		log.Println("Client disconnected")
 	}))
 
 	// ---
